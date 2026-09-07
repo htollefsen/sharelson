@@ -15,8 +15,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "no.tollefsen.sharelsen",
-      "versionCode": 1
+      "package": "no.tollefsen.sharelsen"
     },
     "plugins": [
       "expo-router",
@@ -27,11 +26,32 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      "expo-secure-store",
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": [
+            "image/*"
+          ],
+          "androidMultiIntentFilters": [
+            "image/*"
+          ],
+          "disableIOS": true
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "googleWebClientId": "",
+      "router": {},
+      "eas": {
+        "projectId": "c5f7f1ce-2426-4286-8314-d3de04310bb1"
+      }
+    },
+    "owner": "tolsen"
   }
 }
