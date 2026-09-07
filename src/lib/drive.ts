@@ -5,7 +5,21 @@ import { getAccessToken, invalidateAccessToken } from "./google-auth";
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
 
-export type DriveFile = { id: string; name: string; mimeType?: string };
+export type DriveFile = {
+  id: string;
+  name: string;
+  mimeType?: string;
+  size?: string;
+  createdTime?: string;
+  thumbnailLink?: string;
+  webViewLink?: string;
+};
+
+export type FolderListing = {
+  files: DriveFile[];
+  /** Token to send as Authorization for thumbnailLink requests, valid for about an hour. */
+  accessToken: string;
+};
 
 export type UploadInput = {
   /** file:// or content:// URI, or a bare filesystem path. */
@@ -71,6 +85,28 @@ export async function getFolder(folderId: string): Promise<DriveFile> {
     throw new DriveError("That ID is a file, not a folder", 400);
   }
   return folder;
+}
+
+const LIST_FIELDS = "files(id,name,mimeType,size,createdTime,thumbnailLink,webViewLink)";
+
+/** Lists the folder's contents, newest first. Only the first page (up to `pageSize` items). */
+export async function listFolder(folderId: string, pageSize = 100): Promise<FolderListing> {
+  let usedToken = "";
+  const params = new URLSearchParams({
+    q: `'${folderId}' in parents and trashed=false`,
+    orderBy: "createdTime desc",
+    pageSize: String(pageSize),
+    fields: LIST_FIELDS,
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+  });
+  const response = await withToken((token) => {
+    usedToken = token;
+    return fetch(`${DRIVE_API}/files?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+  });
+  if (!response.ok) throw await describeError(response, "Could not list folder");
+  const body = (await response.json()) as { files?: DriveFile[] };
+  return { files: body.files ?? [], accessToken: usedToken };
 }
 
 /**

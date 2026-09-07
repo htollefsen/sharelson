@@ -1,10 +1,11 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useShareIntentContext } from "expo-share-intent";
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 
 import { Button } from "@/components/button";
-import { DriveError, getFolder } from "@/lib/drive";
+import { FileList } from "@/components/file-list";
+import { DriveError, type FolderListing, getFolder, listFolder } from "@/lib/drive";
 import { getCurrentUser, signIn, signOut } from "@/lib/google-auth";
 import { clearFolderId, getDefaultFolderId, getFolderId, parseFolderId, setFolderId } from "@/lib/settings";
 import { colors, styles } from "@/lib/theme";
@@ -22,18 +23,40 @@ export default function Home() {
   const [folderBusy, setFolderBusy] = useState(false);
   const [folderMessage, setFolderMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const [listing, setListing] = useState<FolderListing | null>(null);
+  const [listBusy, setListBusy] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+
   useEffect(() => {
     if (hasShareIntent) router.replace("/share");
   }, [hasShareIntent, router]);
 
+  const loadListing = useCallback(async (folderId: string | null, signedIn: boolean) => {
+    if (!folderId || !signedIn) {
+      setListing(null);
+      return;
+    }
+    setListBusy(true);
+    setListError(null);
+    try {
+      setListing(await listFolder(folderId));
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setListBusy(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
+      const user = getCurrentUser()?.user.email ?? null;
+      setEmail(user);
       getFolderId().then((id) => {
         setSavedFolderId(id);
         if (id) setFolderInput(id);
+        loadListing(id, Boolean(user));
       });
-      setEmail(getCurrentUser()?.user.email ?? null);
-    }, []),
+    }, [loadListing]),
   );
 
   async function handleSignIn() {
@@ -42,6 +65,7 @@ export default function Home() {
     try {
       const user = await signIn();
       setEmail(user?.user.email ?? null);
+      loadListing(savedFolderId, Boolean(user));
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -54,6 +78,7 @@ export default function Home() {
     try {
       await signOut();
       setEmail(null);
+      setListing(null);
     } finally {
       setAuthBusy(false);
     }
@@ -77,6 +102,7 @@ export default function Home() {
       await setFolderId(id);
       setSavedFolderId(id);
       setFolderInput(id);
+      loadListing(id, Boolean(email));
     } catch (e) {
       const text = e instanceof DriveError ? e.message : e instanceof Error ? e.message : String(e);
       setFolderMessage({ ok: false, text });
@@ -91,12 +117,43 @@ export default function Home() {
     setSavedFolderId(fallback);
     setFolderInput(fallback ?? "");
     setFolderMessage(fallback ? { ok: true, text: "Reset to the default folder." } : null);
+    loadListing(fallback, Boolean(email));
   }
 
   const ready = Boolean(email && savedFolderId);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl
+          refreshing={listBusy && listing !== null}
+          onRefresh={() => loadListing(savedFolderId, Boolean(email))}
+          enabled={ready}
+        />
+      }
+    >
+      {ready ? (
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Text style={[styles.title, { flex: 1 }]}>In the folder</Text>
+            <Text style={styles.muted}>{listing ? `${listing.files.length}` : ""}</Text>
+          </View>
+          {listError ? <Text style={[styles.muted, { color: colors.error }]}>{listError}</Text> : null}
+          {listing && listing.files.length === 0 ? <Text style={styles.muted}>Nothing here yet.</Text> : null}
+          {listing ? <FileList files={listing.files} accessToken={listing.accessToken} /> : null}
+          {!listing && listBusy ? <Text style={styles.muted}>Loading…</Text> : null}
+          <Button
+            title="Refresh"
+            variant="secondary"
+            onPress={() => loadListing(savedFolderId, Boolean(email))}
+            busy={listBusy}
+          />
+        </View>
+      ) : null}
+
       <View style={styles.card}>
         <Text style={styles.title}>How it works</Text>
         <Text style={styles.body}>
