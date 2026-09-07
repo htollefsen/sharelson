@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+    <rect width="1024" height="1024" rx="180" fill="#208AEF"/>
+    <g transform="translate(-61.440000000000055 -61.440000000000055) scale(1.12)">
+    <!-- photo card -->
+    <rect x="262" y="332" width="500" height="400" rx="60" fill="#FFFFFF"/>
+    <!-- picture area inset from the card so a white frame shows on every side -->
+    <clipPath id="picture"><rect x="296" y="366" width="432" height="332" rx="36"/></clipPath>
+    <g clip-path="url(#picture)">
+      <!-- sun -->
+      <circle cx="632" cy="446" r="42" fill="#208AEF"/>
+      <!-- mountains -->
+      <path d="M296 720 L296 630 L410 520 L505 600 L575 545 L728 665 L728 720 Z" fill="#208AEF"/>
+    </g>
+    <!-- upload badge overlapping the card's top-left corner -->
+    <circle cx="300" cy="330" r="150" fill="#208AEF"/>
+    <circle cx="300" cy="330" r="118" fill="#FFFFFF"/>
+    <!-- up arrow -->
+    <path d="M300 250 L370 320 L328 320 L328 410 L272 410 L272 320 L230 320 Z" fill="#208AEF"/>
+  </g>
+  </svg>
