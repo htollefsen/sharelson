@@ -41,6 +41,8 @@ Uploads use Drive's resumable protocol and stream from disk via expo-file-system
 Android module ignore the stale launch intent when the activity is recreated, and report
 exceptions through `onError` instead of rejecting `getShareIntent`. Without it, returning from
 Google's account picker could throw a SecurityException from Google Photos' content provider.
+The same patch also adds `contentUri` to the parsed `ShareIntentFile` (JS only) so the share
+screen can drop Google Photos' COVER variant when an ORIGINAL variant is shared alongside it.
 Re-check the patch when upgrading expo-share-intent. Any native change needs a new dev build.
 
 ## Conventions

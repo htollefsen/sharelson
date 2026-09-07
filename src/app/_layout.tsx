@@ -11,7 +11,7 @@ export default function RootLayout() {
   return (
     // resetOnBackground is off because Google's sign-in and consent screens
     // send the app to the background; the share intent must survive that.
-    <ShareIntentProvider options={{ resetOnBackground: false }}>
+    <ShareIntentProvider options={{ resetOnBackground: false, debug: __DEV__ }}>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{

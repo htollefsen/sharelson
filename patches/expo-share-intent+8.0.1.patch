@@ -50,3 +50,28 @@ index db573ec..34d14b1 100644
              ExpoShareIntentSingleton.intent = activity?.intent
              ExpoShareIntentSingleton.isPending = true
          }
+diff --git a/node_modules/expo-share-intent/build/ExpoShareIntentModule.types.d.ts b/node_modules/expo-share-intent/build/ExpoShareIntentModule.types.d.ts
+index f2ebd1a..e2b69ce 100644
+--- a/node_modules/expo-share-intent/build/ExpoShareIntentModule.types.d.ts
++++ b/node_modules/expo-share-intent/build/ExpoShareIntentModule.types.d.ts
+@@ -79,6 +79,8 @@ export type ShareIntentFile = {
+     fileName: string;
+     mimeType: string;
+     path: string;
++    /** Android only: the original content:// URI the sending app provided. */
++    contentUri?: string | null;
+     size: number | null;
+     width: number | null;
+     height: number | null;
+diff --git a/node_modules/expo-share-intent/build/utils.js b/node_modules/expo-share-intent/build/utils.js
+index 3d343c6..c80148b 100644
+--- a/node_modules/expo-share-intent/build/utils.js
++++ b/node_modules/expo-share-intent/build/utils.js
+@@ -101,6 +101,7 @@ export const parseShareIntent = (value, options) => {
+                                 (file.filePath ? `file://${file.filePath}` : null) ||
+                                 file.contentUri ||
+                                 null,
++                            contentUri: file.contentUri || null,
+                             mimeType: file.mimeType || null,
+                             fileName: file.fileName || null,
+                             width: file.width ? Number(file.width) : null,

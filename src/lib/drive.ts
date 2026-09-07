@@ -1,4 +1,5 @@
 import { File, UploadType } from "expo-file-system";
+import SparkMD5 from "spark-md5";
 
 import { getAccessToken, invalidateAccessToken } from "./google-auth";
 
@@ -13,6 +14,7 @@ export type DriveFile = {
   createdTime?: string;
   thumbnailLink?: string;
   webViewLink?: string;
+  md5Checksum?: string;
 };
 
 export type FolderListing = {
@@ -107,6 +109,40 @@ export async function listFolder(folderId: string, pageSize = 100): Promise<Fold
   if (!response.ok) throw await describeError(response, "Could not list folder");
   const body = (await response.json()) as { files?: DriveFile[] };
   return { files: body.files ?? [], accessToken: usedToken };
+}
+
+/** MD5 of a local file, hex, matching Drive's `md5Checksum` field. */
+export async function localMd5(uri: string): Promise<string> {
+  const bytes = await new File(toFileUri(uri)).bytes();
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  return SparkMD5.ArrayBuffer.hash(buffer);
+}
+
+/**
+ * Every MD5 checksum currently in the folder, mapped to the file's name. Pages through the
+ * whole folder so the result is complete even for large folders.
+ */
+export async function folderChecksums(folderId: string): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({
+      q: `'${folderId}' in parents and trashed=false`,
+      pageSize: "1000",
+      fields: "nextPageToken,files(name,md5Checksum)",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+    const response = await withToken((token) =>
+      fetch(`${DRIVE_API}/files?${params}`, { headers: { Authorization: `Bearer ${token}` } }),
+    );
+    if (!response.ok) throw await describeError(response, "Could not read folder contents");
+    const body = (await response.json()) as { files?: DriveFile[]; nextPageToken?: string };
+    for (const f of body.files ?? []) if (f.md5Checksum) result.set(f.md5Checksum, f.name);
+    pageToken = body.nextPageToken;
+  } while (pageToken);
+  return result;
 }
 
 /**
