@@ -1,0 +1,14 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "apk": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal"
+    }
+  }
+}
