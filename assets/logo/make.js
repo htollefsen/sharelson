@@ -20,10 +20,24 @@ function artwork(ink, hole) {
     <!-- picture area inset from the card so a white frame shows on every side -->
     <clipPath id="picture"><rect x="296" y="366" width="432" height="332" rx="36"/></clipPath>
     <g clip-path="url(#picture)">
-      <!-- sun -->
-      <circle cx="632" cy="446" r="42" fill="${hole}"/>
-      <!-- mountains -->
-      <path d="M296 720 L296 630 L410 520 L505 600 L575 545 L728 665 L728 720 Z" fill="${hole}"/>
+     <g transform="translate(512 556) scale(1.16) translate(-512 -545)">
+      <!-- dog: floppy ears -->
+      <ellipse cx="398" cy="540" rx="48" ry="100" transform="rotate(18 398 540)" fill="${hole}"/>
+      <ellipse cx="626" cy="540" rx="48" ry="100" transform="rotate(-18 626 540)" fill="${hole}"/>
+      <!-- head -->
+      <ellipse cx="512" cy="545" rx="118" ry="112" fill="${hole}"/>
+      <!-- muzzle -->
+      <ellipse cx="512" cy="600" rx="64" ry="46" fill="${ink}"/>
+      <!-- nose -->
+      <ellipse cx="512" cy="582" rx="24" ry="17" fill="${hole}"/>
+      <!-- mouth -->
+      <path d="M512 598 L512 616 M512 616 Q490 636 470 618 M512 616 Q534 636 554 618" stroke="${hole}" stroke-width="10" stroke-linecap="round" fill="none"/>
+      <!-- eyes -->
+      <circle cx="466" cy="520" r="16" fill="${ink}"/>
+      <circle cx="558" cy="520" r="16" fill="${ink}"/>
+      <circle cx="470" cy="522" r="8" fill="${hole}"/>
+      <circle cx="562" cy="522" r="8" fill="${hole}"/>
+     </g>
     </g>
     <!-- upload badge overlapping the card's top-left corner -->
     <circle cx="300" cy="330" r="150" fill="${hole}"/>
