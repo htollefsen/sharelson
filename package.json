@@ -30,6 +30,7 @@
     "@types/react": "~19.2.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -39,7 +40,8 @@
     "typecheck": "tsc --noEmit",
     "build:apk": "npx eas-cli build --platform android --profile apk",
     "build:dev": "npx eas-cli build --platform android --profile development",
-    "eas": "npx eas-cli"
+    "eas": "npx eas-cli",
+    "postinstall": "patch-package"
   },
   "private": true
 }

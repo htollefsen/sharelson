@@ -35,6 +35,14 @@ Uploads use Drive's resumable protocol and stream from disk via expo-file-system
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run lint` — `expo lint`.
 
+## Native patches
+
+`patches/expo-share-intent+8.0.1.patch` (applied by `patch-package` on postinstall) makes the
+Android module ignore the stale launch intent when the activity is recreated, and report
+exceptions through `onError` instead of rejecting `getShareIntent`. Without it, returning from
+Google's account picker could throw a SecurityException from Google Photos' content provider.
+Re-check the patch when upgrading expo-share-intent. Any native change needs a new dev build.
+
 ## Conventions
 
 - Android only: don't add iOS or web config, platform files, or dependencies. The

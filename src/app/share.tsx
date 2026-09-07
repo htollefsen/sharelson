@@ -34,7 +34,7 @@ function statusText(status: Status): string {
 
 export default function Share() {
   const router = useRouter();
-  const { shareIntent, resetShareIntent } = useShareIntentContext();
+  const { shareIntent, resetShareIntent, error: shareError } = useShareIntentContext();
   const files = (shareIntent.files ?? []).filter((f) => f.mimeType?.startsWith("image/"));
 
   const [statuses, setStatuses] = useState<Status[]>(() => files.map(() => ({ kind: "pending" })));
@@ -119,6 +119,7 @@ export default function Share() {
         <View style={styles.card}>
           <Text style={styles.title}>Nothing to upload</Text>
           <Text style={styles.body}>Sharelsen only accepts images. Share a photo to upload it.</Text>
+          {shareError ? <Text style={[styles.muted, { color: colors.error }]}>{shareError}</Text> : null}
           <Button title="Close" onPress={finish} />
         </View>
       ) : (

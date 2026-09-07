@@ -50,7 +50,8 @@
       "router": {},
       "eas": {
         "projectId": "c5f7f1ce-2426-4286-8314-d3de04310bb1"
-      }
+      },
+      "defaultDriveFolderId": "1JsqETlFTQXTDd3Lk5Yv6GFlMy5dpvC9E"
     },
     "owner": "tolsen"
   }

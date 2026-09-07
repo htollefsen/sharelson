@@ -1,0 +1,52 @@
+diff --git a/node_modules/expo-share-intent/android/src/main/java/expo/modules/shareintent/ExpoShareIntentModule.kt b/node_modules/expo-share-intent/android/src/main/java/expo/modules/shareintent/ExpoShareIntentModule.kt
+index ff5b100..a47688a 100644
+--- a/node_modules/expo-share-intent/android/src/main/java/expo/modules/shareintent/ExpoShareIntentModule.kt
++++ b/node_modules/expo-share-intent/android/src/main/java/expo/modules/shareintent/ExpoShareIntentModule.kt
+@@ -183,8 +183,14 @@ class ExpoShareIntentModule : Module() {
+             // get the Intent from onCreate activity (app not running in background)
+             ExpoShareIntentSingleton.isPending = false
+             if (ExpoShareIntentSingleton.intent?.type != null) {
+-                handleShareIntent(ExpoShareIntentSingleton.intent!!);
++                val pending = ExpoShareIntentSingleton.intent!!
+                 ExpoShareIntentSingleton.intent = null
++                try {
++                    handleShareIntent(pending)
++                } catch (e: Exception) {
++                    Log.e("ExpoShareIntent", "cannot handle share intent", e)
++                    notifyError("cannot read shared content: ${e.message}")
++                }
+             }
+         }
+ 
+@@ -197,7 +203,12 @@ class ExpoShareIntentModule : Module() {
+         }
+ 
+         OnNewIntent {
+-            handleShareIntent(it)
++            try {
++                handleShareIntent(it)
++            } catch (e: Exception) {
++                Log.e("ExpoShareIntent", "cannot handle new share intent", e)
++                notifyError("cannot read shared content: ${e.message}")
++            }
+         }
+ 
+         OnCreate {
+diff --git a/node_modules/expo-share-intent/android/src/main/java/expo/modules/shareintent/ExpoShareIntentReactActivityLifecycleListener.kt b/node_modules/expo-share-intent/android/src/main/java/expo/modules/shareintent/ExpoShareIntentReactActivityLifecycleListener.kt
+index db573ec..34d14b1 100644
+--- a/node_modules/expo-share-intent/android/src/main/java/expo/modules/shareintent/ExpoShareIntentReactActivityLifecycleListener.kt
++++ b/node_modules/expo-share-intent/android/src/main/java/expo/modules/shareintent/ExpoShareIntentReactActivityLifecycleListener.kt
+@@ -13,8 +13,11 @@ import expo.modules.core.interfaces.ReactActivityLifecycleListener
+ class ExpoShareIntentReactActivityLifecycleListener(activityContext: Context) : ReactActivityLifecycleListener {
+ 
+     override fun onCreate(activity: Activity?, savedInstanceState: Bundle?) {
+-        // only store when the new intent is not empty
+-        if (activity?.intent?.type != null) {
++        // only store when the new intent is not empty.
++        // Skip when the activity is being recreated (savedInstanceState != null): the intent is
++        // then a stale copy of one already handled, and its content URI grants may be revoked,
++        // which makes re-reading it throw SecurityException.
++        if (savedInstanceState == null && activity?.intent?.type != null) {
+             ExpoShareIntentSingleton.intent = activity?.intent
+             ExpoShareIntentSingleton.isPending = true
+         }

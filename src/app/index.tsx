@@ -6,7 +6,7 @@ import { ScrollView, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/button";
 import { DriveError, getFolder } from "@/lib/drive";
 import { getCurrentUser, signIn, signOut } from "@/lib/google-auth";
-import { clearFolderId, getFolderId, parseFolderId, setFolderId } from "@/lib/settings";
+import { clearFolderId, getDefaultFolderId, getFolderId, parseFolderId, setFolderId } from "@/lib/settings";
 import { colors, styles } from "@/lib/theme";
 
 export default function Home() {
@@ -87,9 +87,10 @@ export default function Home() {
 
   async function handleClearFolder() {
     await clearFolderId();
-    setSavedFolderId(null);
-    setFolderInput("");
-    setFolderMessage(null);
+    const fallback = getDefaultFolderId();
+    setSavedFolderId(fallback);
+    setFolderInput(fallback ?? "");
+    setFolderMessage(fallback ? { ok: true, text: "Reset to the default folder." } : null);
   }
 
   const ready = Boolean(email && savedFolderId);
@@ -125,7 +126,7 @@ export default function Home() {
 
       <View style={styles.card}>
         <Text style={styles.title}>2. Drive folder</Text>
-        <Text style={styles.muted}>Paste the folder link from Google Drive, or just its ID.</Text>
+        <Text style={styles.muted}>The family folder is preset. Paste another Drive folder link or ID to change it.</Text>
         <TextInput
           style={styles.input}
           value={folderInput}
@@ -139,9 +140,9 @@ export default function Home() {
           <View style={{ flex: 1 }}>
             <Button title="Save" onPress={handleSaveFolder} busy={folderBusy} />
           </View>
-          {savedFolderId ? (
+          {savedFolderId && savedFolderId !== getDefaultFolderId() ? (
             <View style={{ flex: 1 }}>
-              <Button title="Clear" variant="secondary" onPress={handleClearFolder} disabled={folderBusy} />
+              <Button title="Reset" variant="secondary" onPress={handleClearFolder} disabled={folderBusy} />
             </View>
           ) : null}
         </View>

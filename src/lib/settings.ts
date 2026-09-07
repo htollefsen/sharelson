@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 
 const FOLDER_KEY = "driveFolderId";
@@ -17,8 +18,15 @@ export function parseFolderId(input: string): string | null {
   return null;
 }
 
+/** Folder baked into the build (app.json → extra.defaultDriveFolderId), used until the user saves another. */
+export function getDefaultFolderId(): string | null {
+  const id = Constants.expoConfig?.extra?.defaultDriveFolderId as string | undefined;
+  return id ? parseFolderId(id) : null;
+}
+
+/** The user's saved folder, falling back to the build default. */
 export async function getFolderId(): Promise<string | null> {
-  return SecureStore.getItemAsync(FOLDER_KEY);
+  return (await SecureStore.getItemAsync(FOLDER_KEY)) ?? getDefaultFolderId();
 }
 
 export async function setFolderId(id: string): Promise<void> {
