@@ -1,34 +1,51 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-    <rect width="1024" height="1024" rx="180" fill="#208AEF"/>
+    
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFB347"/>
+      <stop offset="0.55" stop-color="#FF5E8A"/>
+      <stop offset="1" stop-color="#8E5CFF"/>
+    </linearGradient>
+  </defs>
+    <rect width="1024" height="1024" rx="180" fill="url(#bg)"/>
     <g transform="translate(-61.440000000000055 -61.440000000000055) scale(1.12)">
     <!-- photo card -->
     <rect x="262" y="332" width="500" height="400" rx="60" fill="#FFFFFF"/>
-    <!-- picture area inset from the card so a white frame shows on every side -->
     <clipPath id="picture"><rect x="296" y="366" width="432" height="332" rx="36"/></clipPath>
     <g clip-path="url(#picture)">
-     <g transform="translate(512 556) scale(1.16) translate(-512 -545)">
-      <!-- dog: floppy ears -->
-      <ellipse cx="398" cy="540" rx="48" ry="100" transform="rotate(18 398 540)" fill="#208AEF"/>
-      <ellipse cx="626" cy="540" rx="48" ry="100" transform="rotate(-18 626 540)" fill="#208AEF"/>
-      <!-- head -->
-      <ellipse cx="512" cy="545" rx="118" ry="112" fill="#208AEF"/>
-      <!-- muzzle -->
-      <ellipse cx="512" cy="600" rx="64" ry="46" fill="#FFFFFF"/>
-      <!-- nose -->
-      <ellipse cx="512" cy="582" rx="24" ry="17" fill="#208AEF"/>
-      <!-- mouth -->
-      <path d="M512 598 L512 616 M512 616 Q490 636 470 618 M512 616 Q534 636 554 618" stroke="#208AEF" stroke-width="10" stroke-linecap="round" fill="none"/>
-      <!-- eyes -->
-      <circle cx="466" cy="520" r="16" fill="#FFFFFF"/>
-      <circle cx="558" cy="520" r="16" fill="#FFFFFF"/>
-      <circle cx="470" cy="522" r="8" fill="#208AEF"/>
-      <circle cx="562" cy="522" r="8" fill="#208AEF"/>
-     </g>
+      <rect x="296" y="366" width="432" height="332" fill="#BDE6FF"/>
+      <circle cx="660" cy="430" r="40" fill="#FFD23F"/>
+      <path d="M296 700 L296 640 Q400 600 512 640 Q624 680 728 630 L728 700 Z" fill="#3FAE52"/>
+      <path d="M296 700 L296 660 Q420 620 512 660 Q620 700 728 655 L728 700 Z" fill="#5CC96A"/>
+      <g transform="translate(512 540) scale(1.12) translate(-512 -545)">
+        <!-- ears -->
+        <ellipse cx="398" cy="540" rx="48" ry="100" transform="rotate(18 398 540)" fill="#242424"/>
+        <ellipse cx="626" cy="540" rx="48" ry="100" transform="rotate(-18 626 540)" fill="#242424"/>
+        <!-- head -->
+        <ellipse cx="512" cy="545" rx="118" ry="112" fill="#242424"/>
+        <!-- brown markings: eyebrows, muzzle -->
+        <ellipse cx="466" cy="490" rx="26" ry="14" fill="#A9622D"/>
+        <ellipse cx="558" cy="490" rx="26" ry="14" fill="#A9622D"/>
+        <ellipse cx="512" cy="600" rx="66" ry="48" fill="#A9622D"/>
+        <!-- tongue -->
+        <path d="M494 632 Q512 664 530 632 Z" fill="#FF7B9C"/>
+        <!-- mouth -->
+        <path d="M512 598 L512 616 M512 616 Q490 636 470 618 M512 616 Q534 636 554 618" stroke="#111111" stroke-width="10" stroke-linecap="round" fill="none"/>
+        <!-- nose -->
+        <ellipse cx="512" cy="582" rx="24" ry="17" fill="#111111"/>
+        <!-- eyes -->
+        <circle cx="466" cy="520" r="16" fill="#FFFFFF"/>
+        <circle cx="558" cy="520" r="16" fill="#FFFFFF"/>
+        <circle cx="470" cy="522" r="8" fill="#111111"/>
+        <circle cx="562" cy="522" r="8" fill="#111111"/>
+        <!-- collar with tag -->
+        <path d="M414 650 Q512 700 610 650 L610 680 Q512 730 414 680 Z" fill="#E63946"/>
+        <circle cx="512" cy="700" r="16" fill="#FFD23F"/>
+      </g>
     </g>
-    <!-- upload badge overlapping the card's top-left corner -->
-    <circle cx="300" cy="330" r="150" fill="#208AEF"/>
-    <circle cx="300" cy="330" r="118" fill="#FFFFFF"/>
-    <!-- up arrow -->
-    <path d="M300 250 L370 320 L328 320 L328 410 L272 410 L272 320 L230 320 Z" fill="#208AEF"/>
+    <!-- upload badge -->
+    <circle cx="300" cy="330" r="150" fill="#FFFFFF"/>
+    <circle cx="300" cy="330" r="118" fill="#2E7DFF"/>
+    <path d="M300 250 L370 320 L328 320 L328 410 L272 410 L272 320 L230 320 Z" fill="#FFFFFF"/>
   </g>
   </svg>
