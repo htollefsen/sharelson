@@ -7,7 +7,8 @@ folder. Android only, distributed as a sideloaded APK to family.
 
 1. Each family member installs the APK and signs in with their own Google account.
 2. They paste the link to the shared Drive folder once, on the settings screen.
-3. From then on, sharing a photo to Sharelsen uploads it straight into that folder.
+3. From then on, sharing a photo or video to Sharelsen uploads it straight into that folder.
+   Sharing a link from a browser saves the page as a self-contained offline HTML file there.
 
 The Drive folder owner shares the folder (as Editor) with each family member's Google account.
 Uploads are made by each person's own account, so nothing about the owner's account is stored

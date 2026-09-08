@@ -7,7 +7,7 @@ Read the versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writin
 
 ## What it does
 
-Receives images and videos via the Android share sheet (expo-share-intent) and uploads them to a
+Receives images, videos and shared links via the Android share sheet (expo-share-intent) and uploads them to a
 user-configured Google Drive folder using the signed-in user's Google account
 (@react-native-google-signin/google-signin, classic free API, full `drive` scope).
 Uploads use Drive's resumable protocol and stream from disk via expo-file-system `File.upload`.
@@ -22,9 +22,12 @@ folder's `md5Checksum` values so identical files are skipped.
   "finish setup" prompt. Header gear button opens `/settings`. Redirects to `/share` when a
   share intent is present.
 - `src/app/settings.tsx` — Google sign-in/out and Drive folder selection.
-- `src/app/share.tsx` — upload screen: per-file status, sign-in prompt, retry, done.
+- `src/app/share.tsx` — upload screen: items are media files or a web page; per-item status,
+  MD5 dedupe, sign-in prompt, retry, done.
 - `src/lib/google-auth.ts` — configure/sign-in/token helpers.
-- `src/lib/drive.ts` — Drive API calls (folder lookup, resumable upload, 401 retry).
+- `src/lib/drive.ts` — Drive API calls (folder lookup, listing, checksums, resumable upload, 401 retry).
+- `src/lib/offline-page.ts` — turns a shared URL into a self-contained HTML file (stylesheets,
+  images, fonts inlined as data URIs; scripts stripped; links made absolute) for upload.
 - `src/lib/settings.ts` — folder ID persistence (expo-secure-store) and URL parsing.
 - `src/lib/theme.ts`, `src/components/` — minimal shared styling, button, header icon button,
   Drive file list.
@@ -46,8 +49,9 @@ folder's `md5Checksum` values so identical files are skipped.
 Android module ignore the stale launch intent when the activity is recreated, and report
 exceptions through `onError` instead of rejecting `getShareIntent`. Without it, returning from
 Google's account picker could throw a SecurityException from Google Photos' content provider.
-The same patch also adds `contentUri` to the parsed `ShareIntentFile` (JS only) so the share
-screen can drop Google Photos' COVER variant when an ORIGINAL variant is shared alongside it.
+The same patch also adds `contentUri` to the parsed `ShareIntentFile` (JS only); the share
+screen logs it for diagnostics. COVER/ORIGINAL variant detection uses the file name only, never
+the content URI, because every Google Photos URI contains a `REQUIRE_ORIGINAL` segment.
 Re-check the patch when upgrading expo-share-intent. Any native change needs a new dev build.
 
 ## Conventions

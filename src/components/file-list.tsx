@@ -28,6 +28,7 @@ function kindLabel(mimeType?: string): string {
   if (mimeType === "application/vnd.google-apps.folder") return "Folder";
   if (mimeType.startsWith("image/")) return "Photo";
   if (mimeType.startsWith("video/")) return "Video";
+  if (mimeType === "text/html") return "Web page";
   return mimeType.split("/").pop() ?? "File";
 }
 

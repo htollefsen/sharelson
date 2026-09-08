@@ -6,56 +6,82 @@ import { ScrollView, Text, View } from "react-native";
 import { Button } from "@/components/button";
 import { folderChecksums, localMd5, uploadToFolder } from "@/lib/drive";
 import { getCurrentUser, NotSignedInError, signIn } from "@/lib/google-auth";
+import { buildOfflinePage, saveOfflinePage } from "@/lib/offline-page";
 import { getFolderId } from "@/lib/settings";
 import { colors, styles } from "@/lib/theme";
 
+/** One thing to upload: a shared photo/video, or a web page to save offline. */
+type ShareItem =
+  | { key: string; kind: "media"; file: ShareIntentFile; label: string }
+  | { key: string; kind: "page"; url: string; label: string };
+
 type Status =
   | { kind: "pending" }
+  | { kind: "downloading"; detail?: string }
   | { kind: "checking" }
   | { kind: "uploading"; progress: number }
-  | { kind: "done" }
+  | { kind: "done"; name?: string }
   | { kind: "skipped"; existingName: string }
   | { kind: "error"; message: string };
 
 type Blocker = "none" | "no-folder" | "sign-in" | "running" | "finished";
 
 /**
- * Paths that have been uploaded (or are uploading) in this app session. Lives outside
- * React so a remount, a repeated share-intent event, or a second run of the upload loop
- * can never upload the same shared file twice. Entries are removed when the user
- * finishes the share or explicitly retries a failed file.
+ * Keys (file paths or page URLs) handled in this app session. Lives outside React so a remount,
+ * a repeated share-intent event, or a second run of the upload loop can never upload the same
+ * thing twice. Entries are removed when the user finishes or explicitly retries a failure.
  */
-const handledPaths = new Set<string>();
+const handledKeys = new Set<string>();
 
 /** True while an upload loop is running anywhere in the app, across remounts. */
 let uploadLoopRunning = false;
 
 const log = (...args: unknown[]) => console.log("[sharelsen]", ...args);
 
+/**
+ * Google Photos can share two variants of one picture, e.g. Pixel RAW+JPEG pairs named
+ * `PXL_<time>.RAW-01.MP.COVER.jpg` and `PXL_<time>.RAW-02.ORIGINAL.dng`. Only the file name
+ * is inspected: the content URI must not be used because every Google Photos URI contains a
+ * `REQUIRE_ORIGINAL` segment, which would make a lone COVER file look like a duplicate.
+ */
 const VARIANT = {
-  original: /(^|[/_.\-])ORIGINAL([/_.\-]|$)/,
-  cover: /(^|[/_.\-])COVER([/_.\-]|$)/,
+  original: /\.ORIGINAL\./i,
+  cover: /\.COVER\./i,
 };
 
-function matchesVariant(file: ShareIntentFile, pattern: RegExp): boolean {
-  return [file.contentUri, file.path, file.fileName].some((v) => (v ? pattern.test(decodeURIComponent(v)) : false));
+function baseName(file: ShareIntentFile): string {
+  const name = file.fileName || decodeURIComponent(file.path ?? "");
+  return name.slice(name.lastIndexOf("/") + 1);
+}
+
+/** The part of the name that both variants of a picture share, e.g. `PXL_20260908_155528502`. */
+function stem(name: string): string {
+  return name.split(".")[0];
 }
 
 /**
- * Google Photos sometimes shares two variants of one picture, tagged COVER and ORIGINAL in
- * their content URIs. When both kinds are present, keep only the ORIGINAL ones.
+ * When a COVER variant is shared together with the ORIGINAL variant of the same picture, keep
+ * only the ORIGINAL. A COVER file on its own is uploaded as is.
  */
 function dropCoverVariants(files: ShareIntentFile[]): ShareIntentFile[] {
-  const hasOriginal = files.some((f) => matchesVariant(f, VARIANT.original));
-  if (!hasOriginal) return files;
-  return files.filter((f) => !matchesVariant(f, VARIANT.cover));
+  const originals = new Set(
+    files
+      .map(baseName)
+      .filter((n) => VARIANT.original.test(n))
+      .map(stem),
+  );
+  if (originals.size === 0) return files;
+  return files.filter((f) => {
+    const name = baseName(f);
+    return !(VARIANT.cover.test(name) && originals.has(stem(name)));
+  });
 }
 
 function isMedia(file: ShareIntentFile): boolean {
   return Boolean(file.mimeType?.startsWith("image/") || file.mimeType?.startsWith("video/"));
 }
 
-function fileLabel(file: ShareIntentFile, index: number): string {
+function mediaLabel(file: ShareIntentFile, index: number): string {
   return file.fileName || `${file.mimeType?.startsWith("video/") ? "Video" : "Photo"} ${index + 1}`;
 }
 
@@ -63,12 +89,14 @@ function statusText(status: Status): string {
   switch (status.kind) {
     case "pending":
       return "Waiting";
+    case "downloading":
+      return status.detail ? `Saving page… ${status.detail}` : "Saving page…";
     case "checking":
       return "Checking for duplicates…";
     case "uploading":
       return `Uploading ${Math.round(status.progress * 100)}%`;
     case "done":
-      return "Uploaded";
+      return status.name ? `Uploaded as "${status.name}"` : "Uploaded";
     case "skipped":
       return `Already in folder as "${status.existingName}"`;
     case "error":
@@ -80,16 +108,31 @@ export default function Share() {
   const router = useRouter();
   const { shareIntent, resetShareIntent, error: shareError } = useShareIntentContext();
 
-  const files = useMemo(() => {
+  const items = useMemo<ShareItem[]>(() => {
     const media = (shareIntent.files ?? []).filter(isMedia);
     const kept = dropCoverVariants(media);
     if (kept.length !== media.length) {
       log(`dropped ${media.length - kept.length} COVER variant(s), keeping ORIGINAL`);
     }
-    return kept;
-  }, [shareIntent.files]);
-  // Stable identity for "which share is this": changes only when the set of files changes.
-  const signature = files.map((f) => f.path).join("|");
+    const list: ShareItem[] = kept.map((file, i) => ({
+      key: file.path,
+      kind: "media",
+      file,
+      label: mediaLabel(file, i),
+    }));
+    if (shareIntent.webUrl) {
+      list.push({
+        key: shareIntent.webUrl,
+        kind: "page",
+        url: shareIntent.webUrl,
+        label: shareIntent.meta?.title || shareIntent.webUrl,
+      });
+    }
+    return list;
+  }, [shareIntent.files, shareIntent.webUrl, shareIntent.meta?.title]);
+
+  // Stable identity for "which share is this": changes only when the set of items changes.
+  const signature = items.map((i) => i.key).join("|");
 
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [blocker, setBlocker] = useState<Blocker>("none");
@@ -97,23 +140,93 @@ export default function Share() {
 
   useEffect(() => {
     log(
-      "share screen mounted; files:",
-      files.map((f) => `${f.fileName} ${f.size ?? "?"}B path=${f.path} uri=${f.contentUri ?? "-"}`),
+      "share screen mounted; items:",
+      items.map((i) =>
+        i.kind === "media"
+          ? `${i.file.fileName} ${i.file.size ?? "?"}B path=${i.file.path} uri=${i.file.contentUri ?? "-"}`
+          : `page ${i.url}`,
+      ),
     );
     return () => log("share screen unmounted");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const setStatus = useCallback((path: string, status: Status) => {
-    setStatuses((prev) => (prev[path]?.kind === status.kind && status.kind !== "uploading" ? prev : { ...prev, [path]: status }));
+  const setStatus = useCallback((key: string, status: Status) => {
+    setStatuses((prev) => ({ ...prev, [key]: status }));
   }, []);
 
+  /** Uploads a shared photo or video. Returns the Drive file name, or the duplicate's name. */
+  const uploadMedia = useCallback(
+    async (item: Extract<ShareItem, { kind: "media" }>, folderId: string, existing: Map<string, string>) => {
+      setStatus(item.key, { kind: "checking" });
+      const md5 = await localMd5(item.file.path);
+      const duplicateOf = existing.get(md5);
+      if (duplicateOf) {
+        log(`skip ${item.label}: identical to "${duplicateOf}" already in folder (md5 ${md5})`);
+        setStatus(item.key, { kind: "skipped", existingName: duplicateOf });
+        return;
+      }
+      setStatus(item.key, { kind: "uploading", progress: 0 });
+      log(`upload ${item.label} (md5 ${md5}) from ${item.file.path}`);
+      const uploaded = await uploadToFolder(
+        {
+          uri: item.file.path,
+          fileName: item.label,
+          mimeType: item.file.mimeType,
+          size: item.file.size,
+        },
+        folderId,
+        (progress) => setStatus(item.key, { kind: "uploading", progress }),
+      );
+      existing.set(md5, uploaded.name);
+      log(`uploaded ${item.label} → Drive id ${uploaded.id}`);
+      setStatus(item.key, { kind: "done" });
+    },
+    [setStatus],
+  );
+
+  /** Downloads a web page as a self-contained HTML file and uploads it. */
+  const uploadPage = useCallback(
+    async (item: Extract<ShareItem, { kind: "page" }>, folderId: string, existing: Map<string, string>) => {
+      setStatus(item.key, { kind: "downloading" });
+      log(`saving page ${item.url}`);
+      const page = await buildOfflinePage(item.url, (p) => {
+        if (p.stage === "assets" && p.total)
+          setStatus(item.key, {
+            kind: "downloading",
+            detail: `${p.done}/${p.total} assets`,
+          });
+      });
+      log(
+        `page built: "${page.title}" ${page.html.length} chars, ${page.inlinedAssets} assets inlined, ${page.skippedAssets} skipped`,
+      );
+      const uri = saveOfflinePage(page);
+      setStatus(item.key, { kind: "checking" });
+      const md5 = await localMd5(uri);
+      const duplicateOf = existing.get(md5);
+      if (duplicateOf) {
+        setStatus(item.key, { kind: "skipped", existingName: duplicateOf });
+        return;
+      }
+      setStatus(item.key, { kind: "uploading", progress: 0 });
+      const uploaded = await uploadToFolder(
+        { uri, fileName: page.fileName, mimeType: "text/html", size: null },
+        folderId,
+        (progress) => setStatus(item.key, { kind: "uploading", progress }),
+      );
+      existing.set(md5, uploaded.name);
+      log(`uploaded page → Drive id ${uploaded.id}`);
+      setStatus(item.key, { kind: "done", name: uploaded.name });
+    },
+    [setStatus],
+  );
+
   /**
-   * Uploads every file in `targets` that hasn't been handled yet. Safe to call repeatedly:
-   * a concurrent run is skipped, and already-handled paths are ignored.
+   * Uploads every item in `targets` that hasn't been handled yet. Safe to call repeatedly:
+   * a concurrent run is skipped, and already-handled keys are ignored.
    */
   const runUploads = useCallback(
-    async (targets: ShareIntentFile[]) => {
+    async (targets: ShareItem[]) => {
       if (uploadLoopRunning) {
         log("upload loop already running, ignoring start request");
         return;
@@ -123,7 +236,7 @@ export default function Share() {
         // Nothing below runs synchronously with the caller, so React state updates are safe
         // even when this is invoked from an effect.
         const folderId = await getFolderId();
-        const todo = targets.filter((f) => !handledPaths.has(f.path));
+        const todo = targets.filter((t) => !handledKeys.has(t.key));
         if (todo.length === 0) {
           setBlocker("finished");
           return;
@@ -137,45 +250,27 @@ export default function Share() {
           return;
         }
         setBlocker("running");
-        log(`starting uploads: ${todo.length} of ${targets.length} file(s) not yet handled`);
+        log(`starting uploads: ${todo.length} of ${targets.length} item(s) not yet handled`);
         const existing = await folderChecksums(folderId);
         log(`folder has ${existing.size} file(s) with checksums`);
-        for (const file of todo) {
-          if (handledPaths.has(file.path)) continue;
-          handledPaths.add(file.path);
-          setStatus(file.path, { kind: "checking" });
+        for (const item of todo) {
+          if (handledKeys.has(item.key)) continue;
+          handledKeys.add(item.key);
           try {
-            const md5 = await localMd5(file.path);
-            setStatus(file.path, { kind: "uploading", progress: 0 });
-            const duplicateOf = existing.get(md5);
-            if (duplicateOf) {
-              log(`skip ${file.fileName}: identical to "${duplicateOf}" already in folder (md5 ${md5})`);
-              setStatus(file.path, { kind: "skipped", existingName: duplicateOf });
-              continue;
-            }
-            log(`upload ${file.fileName} (md5 ${md5}) from ${file.path}`);
-            const uploaded = await uploadToFolder(
-              {
-                uri: file.path,
-                fileName: fileLabel(file, targets.indexOf(file)),
-                mimeType: file.mimeType,
-                size: file.size,
-              },
-              folderId,
-              (progress) => setStatus(file.path, { kind: "uploading", progress }),
-            );
-            existing.set(md5, uploaded.name);
-            log(`uploaded ${file.fileName} → Drive id ${uploaded.id}`);
-            setStatus(file.path, { kind: "done" });
+            if (item.kind === "media") await uploadMedia(item, folderId, existing);
+            else await uploadPage(item, folderId, existing);
           } catch (e) {
-            log(`failed ${file.fileName}:`, e instanceof Error ? e.message : e);
-            handledPaths.delete(file.path);
+            log(`failed ${item.label}:`, e instanceof Error ? e.message : e);
+            handledKeys.delete(item.key);
             if (e instanceof NotSignedInError) {
-              setStatus(file.path, { kind: "pending" });
+              setStatus(item.key, { kind: "pending" });
               setBlocker("sign-in");
               return;
             }
-            setStatus(file.path, { kind: "error", message: e instanceof Error ? e.message : String(e) });
+            setStatus(item.key, {
+              kind: "error",
+              message: e instanceof Error ? e.message : String(e),
+            });
           }
         }
         log("upload loop finished");
@@ -184,15 +279,15 @@ export default function Share() {
         uploadLoopRunning = false;
       }
     },
-    [setStatus],
+    [setStatus, uploadMedia, uploadPage],
   );
 
-  // Start (or continue) uploading whenever a share arrives. Keyed on the file signature so a
-  // new share while this screen is open is picked up, while re-renders and duplicate
-  // share-intent events with the same files are no-ops thanks to handledPaths.
+  // Start (or continue) uploading whenever a share arrives. Keyed on the signature so a new
+  // share while this screen is open is picked up, while re-renders and duplicate share-intent
+  // events with the same content are no-ops thanks to handledKeys.
   useEffect(() => {
-    if (files.length === 0) return;
-    void runUploads(files);
+    if (items.length === 0) return;
+    void runUploads(items);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature, runUploads]);
 
@@ -200,7 +295,7 @@ export default function Share() {
     setBusy(true);
     try {
       const user = await signIn();
-      if (user) await runUploads(files);
+      if (user) await runUploads(items);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setStatuses((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, { kind: "error", message }])));
@@ -211,43 +306,50 @@ export default function Share() {
   }
 
   function retryFailed() {
-    for (const f of files) {
-      if (statuses[f.path]?.kind === "error") handledPaths.delete(f.path);
+    for (const item of items) {
+      if (statuses[item.key]?.kind === "error") handledKeys.delete(item.key);
     }
-    runUploads(files);
+    void runUploads(items);
   }
 
   function finish() {
-    for (const f of files) handledPaths.delete(f.path);
+    for (const item of items) handledKeys.delete(item.key);
     resetShareIntent();
     router.replace("/");
   }
 
-  const statusOf = (file: ShareIntentFile): Status => statuses[file.path] ?? { kind: "pending" };
-  const doneCount = files.filter((f) => statusOf(f).kind === "done").length;
-  const skippedCount = files.filter((f) => statusOf(f).kind === "skipped").length;
-  const errorCount = files.filter((f) => statusOf(f).kind === "error").length;
+  const statusOf = (item: ShareItem): Status => statuses[item.key] ?? { kind: "pending" };
+  const count = (kind: Status["kind"]) => items.filter((i) => statusOf(i).kind === kind).length;
+  const doneCount = count("done");
+  const skippedCount = count("skipped");
+  const errorCount = count("error");
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {files.length === 0 ? (
+      {items.length === 0 ? (
         <View style={styles.card}>
           <Text style={styles.title}>Nothing to upload</Text>
-          <Text style={styles.body}>Sharelsen only accepts photos and videos. Share one to upload it.</Text>
+          <Text style={styles.body}>Sharelsen accepts photos, videos, and links to web pages.</Text>
+          {shareIntent.text ? (
+            <Text style={styles.muted} numberOfLines={3}>
+              Shared text: {shareIntent.text}
+            </Text>
+          ) : null}
           {shareError ? <Text style={[styles.muted, { color: colors.error }]}>{shareError}</Text> : null}
           <Button title="Close" onPress={finish} />
         </View>
       ) : (
         <>
           <View style={styles.card}>
-            {files.map((file, i) => {
-              const status = statusOf(file);
+            {items.map((item) => {
+              const status = statusOf(item);
               const color =
                 status.kind === "done" ? colors.success : status.kind === "error" ? colors.error : colors.muted;
               return (
-                <View key={file.path} style={{ gap: 2 }}>
+                <View key={item.key} style={{ gap: 2 }}>
                   <Text style={styles.body} numberOfLines={1}>
-                    {fileLabel(file, i)}
+                    {item.kind === "page" ? "Web page: " : ""}
+                    {item.label}
                   </Text>
                   <Text style={[styles.muted, { color }]}>{statusText(status)}</Text>
                 </View>

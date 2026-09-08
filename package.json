@@ -5,7 +5,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-google-signin/google-signin": "^16.1.5",
-    "expo": "~57.0.20",
+    "expo": "~57.0.21",
     "expo-constants": "~57.0.17",
     "expo-dev-client": "~57.0.18",
     "expo-device": "~57.0.1",
@@ -13,7 +13,7 @@
     "expo-font": "~57.0.3",
     "expo-image": "~57.0.4",
     "expo-linking": "~57.0.9",
-    "expo-router": "~57.0.19",
+    "expo-router": "~57.0.20",
     "expo-secure-store": "~57.0.3",
     "expo-share-intent": "^8.0.1",
     "expo-splash-screen": "~57.0.8",
