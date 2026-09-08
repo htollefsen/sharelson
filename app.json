@@ -31,10 +31,12 @@
         "expo-share-intent",
         {
           "androidIntentFilters": [
-            "image/*"
+            "image/*",
+            "video/*"
           ],
           "androidMultiIntentFilters": [
-            "image/*"
+            "image/*",
+            "video/*"
           ],
           "disableIOS": true
         }

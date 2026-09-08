@@ -11,6 +11,7 @@ import { colors, styles } from "@/lib/theme";
 
 type Status =
   | { kind: "pending" }
+  | { kind: "checking" }
   | { kind: "uploading"; progress: number }
   | { kind: "done" }
   | { kind: "skipped"; existingName: string }
@@ -50,14 +51,20 @@ function dropCoverVariants(files: ShareIntentFile[]): ShareIntentFile[] {
   return files.filter((f) => !matchesVariant(f, VARIANT.cover));
 }
 
+function isMedia(file: ShareIntentFile): boolean {
+  return Boolean(file.mimeType?.startsWith("image/") || file.mimeType?.startsWith("video/"));
+}
+
 function fileLabel(file: ShareIntentFile, index: number): string {
-  return file.fileName || `Photo ${index + 1}`;
+  return file.fileName || `${file.mimeType?.startsWith("video/") ? "Video" : "Photo"} ${index + 1}`;
 }
 
 function statusText(status: Status): string {
   switch (status.kind) {
     case "pending":
       return "Waiting";
+    case "checking":
+      return "Checking for duplicates…";
     case "uploading":
       return `Uploading ${Math.round(status.progress * 100)}%`;
     case "done":
@@ -74,10 +81,10 @@ export default function Share() {
   const { shareIntent, resetShareIntent, error: shareError } = useShareIntentContext();
 
   const files = useMemo(() => {
-    const images = (shareIntent.files ?? []).filter((f) => f.mimeType?.startsWith("image/"));
-    const kept = dropCoverVariants(images);
-    if (kept.length !== images.length) {
-      log(`dropped ${images.length - kept.length} COVER variant(s), keeping ORIGINAL`);
+    const media = (shareIntent.files ?? []).filter(isMedia);
+    const kept = dropCoverVariants(media);
+    if (kept.length !== media.length) {
+      log(`dropped ${media.length - kept.length} COVER variant(s), keeping ORIGINAL`);
     }
     return kept;
   }, [shareIntent.files]);
@@ -136,9 +143,10 @@ export default function Share() {
         for (const file of todo) {
           if (handledPaths.has(file.path)) continue;
           handledPaths.add(file.path);
-          setStatus(file.path, { kind: "uploading", progress: 0 });
+          setStatus(file.path, { kind: "checking" });
           try {
             const md5 = await localMd5(file.path);
+            setStatus(file.path, { kind: "uploading", progress: 0 });
             const duplicateOf = existing.get(md5);
             if (duplicateOf) {
               log(`skip ${file.fileName}: identical to "${duplicateOf}" already in folder (md5 ${md5})`);
@@ -225,7 +233,7 @@ export default function Share() {
       {files.length === 0 ? (
         <View style={styles.card}>
           <Text style={styles.title}>Nothing to upload</Text>
-          <Text style={styles.body}>Sharelsen only accepts images. Share a photo to upload it.</Text>
+          <Text style={styles.body}>Sharelsen only accepts photos and videos. Share one to upload it.</Text>
           {shareError ? <Text style={[styles.muted, { color: colors.error }]}>{shareError}</Text> : null}
           <Button title="Close" onPress={finish} />
         </View>

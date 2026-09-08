@@ -75,7 +75,7 @@ export default function Home() {
           </View>
           {listError ? <Text style={[styles.muted, { color: colors.error }]}>{listError}</Text> : null}
           {listing && listing.files.length === 0 ? (
-            <Text style={styles.muted}>Nothing here yet. Share a photo to Sharelsen to add one.</Text>
+            <Text style={styles.muted}>Nothing here yet. Share a photo or video to Sharelsen to add one.</Text>
           ) : null}
           {listing ? <FileList files={listing.files} accessToken={listing.accessToken} /> : null}
           {!listing && listBusy ? <Text style={styles.muted}>Loading…</Text> : null}
@@ -86,10 +86,10 @@ export default function Home() {
           <Text style={styles.title}>Finish setup</Text>
           <Text style={styles.body}>
             {!signedIn && !folderId
-              ? "Sign in with Google and choose a Drive folder to start receiving photos."
+              ? "Sign in with Google and choose a Drive folder to start receiving photos and videos."
               : !signedIn
-                ? "Sign in with Google to start receiving photos."
-                : "Choose a Drive folder to start receiving photos."}
+                ? "Sign in with Google to start receiving photos and videos."
+                : "Choose a Drive folder to start receiving photos and videos."}
           </Text>
           <Button title="Open settings" onPress={() => router.push("/settings")} />
         </View>

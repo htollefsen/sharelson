@@ -1,4 +1,5 @@
 import { File, UploadType } from "expo-file-system";
+import { getInfoAsync } from "expo-file-system/legacy";
 import SparkMD5 from "spark-md5";
 
 import { getAccessToken, invalidateAccessToken } from "./google-auth";
@@ -111,11 +112,27 @@ export async function listFolder(folderId: string, pageSize = 100): Promise<Fold
   return { files: body.files ?? [], accessToken: usedToken };
 }
 
-/** MD5 of a local file, hex, matching Drive's `md5Checksum` field. */
+/**
+ * MD5 of a local file, hex, matching Drive's `md5Checksum` field. Hashed natively when the
+ * platform supports it (fast, constant memory, fine for large videos); otherwise streamed
+ * through a JS implementation in chunks so the whole file is never held in memory.
+ */
 export async function localMd5(uri: string): Promise<string> {
-  const bytes = await new File(toFileUri(uri)).bytes();
-  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  return SparkMD5.ArrayBuffer.hash(buffer);
+  const fileUri = toFileUri(uri);
+  try {
+    const info = await getInfoAsync(fileUri, { md5: true });
+    if (info.exists && info.md5) return info.md5;
+  } catch {
+    // fall through to the streaming implementation
+  }
+  const hasher = new SparkMD5.ArrayBuffer();
+  const reader = new File(fileUri).readableStream().getReader();
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    hasher.append(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer);
+  }
+  return hasher.end();
 }
 
 /**

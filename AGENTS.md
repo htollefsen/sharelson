@@ -7,10 +7,12 @@ Read the versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writin
 
 ## What it does
 
-Receives images via the Android share sheet (expo-share-intent) and uploads them to a
+Receives images and videos via the Android share sheet (expo-share-intent) and uploads them to a
 user-configured Google Drive folder using the signed-in user's Google account
 (@react-native-google-signin/google-signin, classic free API, full `drive` scope).
 Uploads use Drive's resumable protocol and stream from disk via expo-file-system `File.upload`.
+Before uploading, the file's MD5 (native, via the legacy `getInfoAsync`) is compared against the
+folder's `md5Checksum` values so identical files are skipped.
 
 ## Layout
 

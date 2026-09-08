@@ -135,8 +135,8 @@ export default function Settings() {
       <View style={styles.card}>
         <Text style={styles.title}>How it works</Text>
         <Text style={styles.body}>
-          Open a photo in any app, tap Share, and pick Sharelsen. The photo is uploaded to the Drive folder
-          above. Photos already in the folder are skipped.
+          Open a photo or video in any app, tap Share, and pick Sharelsen. It is uploaded to the Drive folder
+          above. Files already in the folder are skipped.
         </Text>
       </View>
     </ScrollView>
