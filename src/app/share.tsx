@@ -8,6 +8,7 @@ import { PageRenderer, type PageRendererHandle } from "@/components/page-rendere
 import { folderChecksums, localMd5, uploadToFolder, type UploadInput } from "@/lib/drive";
 import { getCurrentUser, NotSignedInError, signIn } from "@/lib/google-auth";
 import { buildOfflinePage, fetchLink, saveOfflinePage } from "@/lib/offline-page";
+import { captureTime } from "@/lib/media-date";
 import { getFolderId } from "@/lib/settings";
 import { colors, styles } from "@/lib/theme";
 
@@ -177,19 +178,24 @@ export default function Share() {
         return;
       }
       setStatus(item.key, { kind: "uploading", progress: 0 });
-      log(`upload ${item.label} (md5 ${md5}) from ${item.file.path}`);
+      const taken = captureTime(item.file.path, item.file.mimeType, item.label);
+      log(
+        `upload ${item.label} (md5 ${md5}) from ${item.file.path}` +
+          (taken ? `, taken ${taken.date.toISOString()} (${taken.source})` : ", capture time unknown"),
+      );
       const uploaded = await uploadToFolder(
         {
           uri: item.file.path,
           fileName: item.label,
           mimeType: item.file.mimeType,
           size: item.file.size,
+          createdAt: taken?.date,
         },
         folderId,
         (progress) => setStatus(item.key, { kind: "uploading", progress }),
       );
       existing.set(md5, uploaded.name);
-      log(`uploaded ${item.label} → Drive id ${uploaded.id}`);
+      log(`uploaded ${item.label} → Drive id ${uploaded.id}, createdTime ${uploaded.createdTime ?? "?"}`);
       setStatus(item.key, { kind: "done" });
     },
     [setStatus],

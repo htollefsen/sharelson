@@ -30,6 +30,8 @@ export type UploadInput = {
   fileName: string;
   mimeType: string;
   size: number | null;
+  /** When the content was originally created; stored as Drive's createdTime/modifiedTime. */
+  createdAt?: Date | null;
 };
 
 export class DriveError extends Error {
@@ -42,7 +44,7 @@ export class DriveError extends Error {
   }
 }
 
-function toFileUri(uri: string): string {
+export function toFileUri(uri: string): string {
   return /^[a-z]+:\/\//i.test(uri) ? uri : `file://${uri}`;
 }
 
@@ -177,7 +179,7 @@ export async function uploadToFolder(
   const mimeType = input.mimeType || file.type || "application/octet-stream";
 
   const session = await withToken((token) =>
-    fetch(`${DRIVE_UPLOAD}?uploadType=resumable&supportsAllDrives=true`, {
+    fetch(`${DRIVE_UPLOAD}?uploadType=resumable&supportsAllDrives=true&fields=id,name,mimeType,createdTime,modifiedTime`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -185,7 +187,13 @@ export async function uploadToFolder(
         "X-Upload-Content-Type": mimeType,
         ...(size != null ? { "X-Upload-Content-Length": String(size) } : {}),
       },
-      body: JSON.stringify({ name: input.fileName, parents: [folderId] }),
+      body: JSON.stringify({
+        name: input.fileName,
+        parents: [folderId],
+        ...(input.createdAt
+          ? { createdTime: input.createdAt.toISOString(), modifiedTime: input.createdAt.toISOString() }
+          : {}),
+      }),
     }),
   );
   if (!session.ok) throw await describeError(session, "Could not start upload");

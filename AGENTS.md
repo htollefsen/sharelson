@@ -33,6 +33,8 @@ folder's `md5Checksum` values so identical files are skipped.
   JavaScript runs, waits for DOM mutations to stop, scrolls through once for lazy content, and
   returns the rendered DOM. The share screen feeds that into `buildOfflinePage`, falling back to
   the raw server HTML if rendering fails or times out.
+- `src/lib/media-date.ts` — original capture time of a shared photo/video (JPEG EXIF, MP4 `mvhd`,
+  or a timestamp in the file name), sent to Drive as `createdTime`/`modifiedTime` on upload.
 - `src/lib/settings.ts` — folder ID persistence (expo-secure-store) and URL parsing.
 - `src/lib/theme.ts`, `src/components/` — minimal shared styling, button, header icon button,
   Drive file list.
