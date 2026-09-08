@@ -33,11 +33,13 @@
           "androidIntentFilters": [
             "image/*",
             "video/*",
+            "application/pdf",
             "text/*"
           ],
           "androidMultiIntentFilters": [
             "image/*",
-            "video/*"
+            "video/*",
+            "application/pdf"
           ],
           "disableIOS": true
         }

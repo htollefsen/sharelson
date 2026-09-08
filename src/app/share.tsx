@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { Button } from "@/components/button";
-import { folderChecksums, localMd5, uploadToFolder } from "@/lib/drive";
+import { folderChecksums, localMd5, uploadToFolder, type UploadInput } from "@/lib/drive";
 import { getCurrentUser, NotSignedInError, signIn } from "@/lib/google-auth";
-import { buildOfflinePage, saveOfflinePage } from "@/lib/offline-page";
+import { saveLink, saveOfflinePage } from "@/lib/offline-page";
 import { getFolderId } from "@/lib/settings";
 import { colors, styles } from "@/lib/theme";
 
-/** One thing to upload: a shared photo/video, or a web page to save offline. */
+/** One thing to upload: a shared photo, video or PDF, or a link (web page or direct file). */
 type ShareItem =
   | { key: string; kind: "media"; file: ShareIntentFile; label: string }
   | { key: string; kind: "page"; url: string; label: string };
@@ -77,12 +77,18 @@ function dropCoverVariants(files: ShareIntentFile[]): ShareIntentFile[] {
   });
 }
 
+const PDF = "application/pdf";
+
 function isMedia(file: ShareIntentFile): boolean {
-  return Boolean(file.mimeType?.startsWith("image/") || file.mimeType?.startsWith("video/"));
+  const type = file.mimeType ?? "";
+  return type.startsWith("image/") || type.startsWith("video/") || type === PDF;
 }
 
 function mediaLabel(file: ShareIntentFile, index: number): string {
-  return file.fileName || `${file.mimeType?.startsWith("video/") ? "Video" : "Photo"} ${index + 1}`;
+  if (file.fileName) return file.fileName;
+  const type = file.mimeType ?? "";
+  const kind = type === PDF ? "PDF" : type.startsWith("video/") ? "Video" : "Photo";
+  return `${kind} ${index + 1}`;
 }
 
 function statusText(status: Status): string {
@@ -90,6 +96,7 @@ function statusText(status: Status): string {
     case "pending":
       return "Waiting";
     case "downloading":
+      if (status.detail === "file") return "Downloading…";
       return status.detail ? `Saving page… ${status.detail}` : "Saving page…";
     case "checking":
       return "Checking for duplicates…";
@@ -155,7 +162,7 @@ export default function Share() {
     setStatuses((prev) => ({ ...prev, [key]: status }));
   }, []);
 
-  /** Uploads a shared photo or video. Returns the Drive file name, or the duplicate's name. */
+  /** Uploads a shared photo, video or PDF. Returns the Drive file name, or the duplicate's name. */
   const uploadMedia = useCallback(
     async (item: Extract<ShareItem, { kind: "media" }>, folderId: string, existing: Map<string, string>) => {
       setStatus(item.key, { kind: "checking" });
@@ -185,34 +192,42 @@ export default function Share() {
     [setStatus],
   );
 
-  /** Downloads a web page as a self-contained HTML file and uploads it. */
+  /**
+   * Downloads a shared link and uploads it: a link to a PDF, image or video is uploaded as that
+   * file, a web page is saved as a self-contained HTML file first.
+   */
   const uploadPage = useCallback(
     async (item: Extract<ShareItem, { kind: "page" }>, folderId: string, existing: Map<string, string>) => {
       setStatus(item.key, { kind: "downloading" });
-      log(`saving page ${item.url}`);
-      const page = await buildOfflinePage(item.url, (p) => {
+      log(`saving link ${item.url}`);
+      const saved = await saveLink(item.url, (p) => {
+        if (p.stage === "file") setStatus(item.key, { kind: "downloading", detail: "file" });
         if (p.stage === "assets" && p.total)
           setStatus(item.key, {
             kind: "downloading",
             detail: `${p.done}/${p.total} assets`,
           });
       });
-      log(
-        `page built: "${page.title}" ${page.html.length} chars, ${page.inlinedAssets} assets inlined, ${page.skippedAssets} skipped`,
-      );
-      const uri = saveOfflinePage(page);
+      let upload: UploadInput;
+      if (saved.kind === "page") {
+        log(
+          `page built: "${saved.title}" ${saved.html.length} chars, ${saved.inlinedAssets} assets inlined, ${saved.skippedAssets} skipped`,
+        );
+        upload = { uri: saveOfflinePage(saved), fileName: saved.fileName, mimeType: "text/html", size: null };
+      } else {
+        log(`downloaded file "${saved.fileName}" ${saved.size}B (${saved.mimeType}) from ${saved.finalUrl}`);
+        upload = { uri: saved.uri, fileName: saved.fileName, mimeType: saved.mimeType, size: saved.size };
+      }
       setStatus(item.key, { kind: "checking" });
-      const md5 = await localMd5(uri);
+      const md5 = await localMd5(upload.uri);
       const duplicateOf = existing.get(md5);
       if (duplicateOf) {
         setStatus(item.key, { kind: "skipped", existingName: duplicateOf });
         return;
       }
       setStatus(item.key, { kind: "uploading", progress: 0 });
-      const uploaded = await uploadToFolder(
-        { uri, fileName: page.fileName, mimeType: "text/html", size: null },
-        folderId,
-        (progress) => setStatus(item.key, { kind: "uploading", progress }),
+      const uploaded = await uploadToFolder(upload, folderId, (progress) =>
+        setStatus(item.key, { kind: "uploading", progress }),
       );
       existing.set(md5, uploaded.name);
       log(`uploaded page → Drive id ${uploaded.id}`);
@@ -329,7 +344,7 @@ export default function Share() {
       {items.length === 0 ? (
         <View style={styles.card}>
           <Text style={styles.title}>Nothing to upload</Text>
-          <Text style={styles.body}>Sharelsen accepts photos, videos, and links to web pages.</Text>
+          <Text style={styles.body}>Sharelsen accepts photos, videos, PDFs, and links to web pages.</Text>
           {shareIntent.text ? (
             <Text style={styles.muted} numberOfLines={3}>
               Shared text: {shareIntent.text}
@@ -348,7 +363,7 @@ export default function Share() {
               return (
                 <View key={item.key} style={{ gap: 2 }}>
                   <Text style={styles.body} numberOfLines={1}>
-                    {item.kind === "page" ? "Web page: " : ""}
+                    {item.kind === "page" ? "Link: " : ""}
                     {item.label}
                   </Text>
                   <Text style={[styles.muted, { color }]}>{statusText(status)}</Text>

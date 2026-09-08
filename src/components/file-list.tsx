@@ -29,6 +29,7 @@ function kindLabel(mimeType?: string): string {
   if (mimeType.startsWith("image/")) return "Photo";
   if (mimeType.startsWith("video/")) return "Video";
   if (mimeType === "text/html") return "Web page";
+  if (mimeType === "application/pdf") return "PDF";
   return mimeType.split("/").pop() ?? "File";
 }
 

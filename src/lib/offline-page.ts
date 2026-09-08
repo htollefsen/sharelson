@@ -12,6 +12,7 @@ import { Directory, File, Paths } from "expo-file-system";
 
 const LIMITS = {
   pageBytes: 15 * 1024 * 1024, // refuse pages whose HTML alone is bigger than this
+  fileBytes: 100 * 1024 * 1024, // refuse linked files (PDFs etc.) bigger than this
   assetBytes: 4 * 1024 * 1024, // skip a single asset bigger than this
   totalAssetBytes: 40 * 1024 * 1024, // stop inlining once this much has been embedded
   maxAssets: 300,
@@ -26,6 +27,7 @@ const USER_AGENT =
   "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36 Sharelsen/1.0";
 
 export type OfflinePage = {
+  kind: "page";
   title: string;
   fileName: string;
   html: string;
@@ -34,6 +36,18 @@ export type OfflinePage = {
   inlinedAssets: number;
   skippedAssets: number;
 };
+
+/** A link that points straight at a file (PDF, image, video), downloaded to the app cache. */
+export type LinkedFile = {
+  kind: "file";
+  uri: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  finalUrl: string;
+};
+
+export type SavedLink = OfflinePage | LinkedFile;
 
 export class PageError extends Error {
   constructor(message: string) {
@@ -277,9 +291,61 @@ function safeFileName(title: string, url: string): string {
   return `${base || "page"}.html`;
 }
 
-export type PageProgress = { stage: "page" | "assets"; done?: number; total?: number };
+export type PageProgress = { stage: "page" | "assets" | "file"; done?: number; total?: number };
 
-export async function buildOfflinePage(sourceUrl: string, onProgress?: (p: PageProgress) => void): Promise<OfflinePage> {
+/** Content types that are uploaded as the file itself rather than saved as an offline page. */
+const DIRECT_FILE_TYPES = /^(application\/pdf|image\/|video\/)/;
+
+const EXTENSION_FOR: Record<string, string> = { "application/pdf": ".pdf" };
+
+/** File name from Content-Disposition, else the last URL path segment, else the type's default. */
+function linkedFileName(res: Response, url: string, mimeType: string): string {
+  const disposition = res.headers.get("content-disposition") || "";
+  const star = disposition.match(/filename\*\s*=\s*(?:UTF-8|utf-8)?''([^;]+)/);
+  const plain = disposition.match(/filename\s*=\s*(?:"([^"]*)"|([^;]+))/);
+  let name = "";
+  if (star) {
+    try {
+      name = decodeURIComponent(star[1].trim());
+    } catch {
+      name = star[1].trim();
+    }
+  } else if (plain) {
+    name = (plain[1] ?? plain[2]).trim();
+  }
+  if (!name) {
+    try {
+      name = decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "");
+    } catch {
+      name = "";
+    }
+  }
+  name = name.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+  const ext = EXTENSION_FOR[mimeType] ?? "";
+  if (!name) name = `file${ext}`;
+  else if (ext && !name.toLowerCase().endsWith(ext)) name += ext;
+  return name;
+}
+
+/** Downloads the response body to the app cache and describes it for upload. */
+async function saveLinkedFile(res: Response, finalUrl: string, mimeType: string): Promise<LinkedFile> {
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > LIMITS.fileBytes) throw new PageError("The file is too large to save");
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (bytes.byteLength > LIMITS.fileBytes) throw new PageError("The file is too large to save");
+  const fileName = linkedFileName(res, finalUrl, mimeType);
+  const dir = new Directory(Paths.cache, "sharelsen-files");
+  dir.create({ intermediates: true, idempotent: true });
+  const file = new File(dir, `${Date.now()}-${fileName}`);
+  file.write(bytes);
+  return { kind: "file", uri: file.uri, fileName, mimeType, size: bytes.byteLength, finalUrl };
+}
+
+/**
+ * Fetches a shared link. Links to a PDF, image or video are downloaded as that file; anything
+ * else must be an HTML page, which is turned into a self-contained offline copy.
+ */
+export async function saveLink(sourceUrl: string, onProgress?: (p: PageProgress) => void): Promise<SavedLink> {
   onProgress?.({ stage: "page" });
   const deadline = Date.now() + LIMITS.assetBudgetMs;
   let res: Response;
@@ -289,13 +355,27 @@ export async function buildOfflinePage(sourceUrl: string, onProgress?: (p: PageP
     throw new PageError(`The page could not be loaded (${e instanceof Error ? e.message : String(e)})`);
   }
   if (!res.ok) throw new PageError(`The page could not be loaded (HTTP ${res.status})`);
-  const contentType = (res.headers.get("content-type") || "").split(";")[0].trim();
+  const contentType = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  const finalUrl = res.url || sourceUrl;
+  if (DIRECT_FILE_TYPES.test(contentType)) {
+    onProgress?.({ stage: "file" });
+    return saveLinkedFile(res, finalUrl, contentType);
+  }
   if (contentType && !/html|xml/.test(contentType)) {
     throw new PageError(`That link is not a web page (${contentType})`);
   }
-  const finalUrl = res.url || sourceUrl;
   let html = await res.text();
   if (html.length > LIMITS.pageBytes) throw new PageError("The page is too large to save");
+  return buildOfflinePage(html, sourceUrl, finalUrl, deadline, onProgress);
+}
+
+async function buildOfflinePage(
+  html: string,
+  sourceUrl: string,
+  finalUrl: string,
+  deadline: number,
+  onProgress?: (p: PageProgress) => void,
+): Promise<OfflinePage> {
 
   // Base URL for relative references: <base href> wins over the final URL.
   const baseTag = html.match(/<base\s[^>]*>/i)?.[0];
@@ -418,6 +498,7 @@ export async function buildOfflinePage(sourceUrl: string, onProgress?: (p: PageP
   if (!/<!doctype/i.test(html)) html = "<!DOCTYPE html>\n" + html;
 
   return {
+    kind: "page",
     title,
     fileName: safeFileName(title, finalUrl),
     html,
