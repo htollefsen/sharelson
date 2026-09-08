@@ -1,13 +1,15 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { ShareIntentProvider } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 
+import { HeaderButton } from "@/components/header-button";
 import { configureGoogle } from "@/lib/google-auth";
 import { colors } from "@/lib/theme";
 
 configureGoogle();
 
 export default function RootLayout() {
+  const router = useRouter();
   return (
     // resetOnBackground is off because Google's sign-in and consent screens
     // send the app to the background; the share intent must survive that.
@@ -20,7 +22,16 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        <Stack.Screen name="index" options={{ title: "Sharelsen" }} />
+        <Stack.Screen
+          name="index"
+          options={{
+            title: "Sharelsen",
+            headerRight: () => (
+              <HeaderButton icon="settings-outline" label="Settings" onPress={() => router.push("/settings")} />
+            ),
+          }}
+        />
+        <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="share" options={{ title: "Upload to Drive", headerBackVisible: false }} />
       </Stack>
     </ShareIntentProvider>

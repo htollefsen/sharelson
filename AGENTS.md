@@ -16,13 +16,16 @@ Uploads use Drive's resumable protocol and stream from disk via expo-file-system
 
 - `src/app/_layout.tsx` — root Stack wrapped in ShareIntentProvider (resetOnBackground off,
   because Google sign-in screens background the app mid-share).
-- `src/app/index.tsx` — settings/home: Google sign-in and Drive folder. Redirects to
-  `/share` when a share intent is present.
+- `src/app/index.tsx` — home: lists the Drive folder contents once set up, otherwise shows a
+  "finish setup" prompt. Header gear button opens `/settings`. Redirects to `/share` when a
+  share intent is present.
+- `src/app/settings.tsx` — Google sign-in/out and Drive folder selection.
 - `src/app/share.tsx` — upload screen: per-file status, sign-in prompt, retry, done.
 - `src/lib/google-auth.ts` — configure/sign-in/token helpers.
 - `src/lib/drive.ts` — Drive API calls (folder lookup, resumable upload, 401 retry).
 - `src/lib/settings.ts` — folder ID persistence (expo-secure-store) and URL parsing.
-- `src/lib/theme.ts`, `src/components/button.tsx` — minimal shared styling.
+- `src/lib/theme.ts`, `src/components/` — minimal shared styling, button, header icon button,
+  Drive file list.
 - `app.json` — Expo config. Package id `no.tollefsen.sharelsen`.
   `extra.googleWebClientId` is optional.
 - `eas.json` — `development` (dev client APK) and `apk` (release APK) profiles.
