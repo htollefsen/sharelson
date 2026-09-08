@@ -47,8 +47,6 @@ export type LinkedFile = {
   finalUrl: string;
 };
 
-export type SavedLink = OfflinePage | LinkedFile;
-
 export class PageError extends Error {
   constructor(message: string) {
     super(message);
@@ -341,11 +339,15 @@ async function saveLinkedFile(res: Response, finalUrl: string, mimeType: string)
   return { kind: "file", uri: file.uri, fileName, mimeType, size: bytes.byteLength, finalUrl };
 }
 
+/** The server's own HTML for a link, before any JavaScript has run. */
+export type PageSource = { kind: "html"; html: string; finalUrl: string };
+
 /**
  * Fetches a shared link. Links to a PDF, image or video are downloaded as that file; anything
- * else must be an HTML page, which is turned into a self-contained offline copy.
+ * else must be an HTML page, whose raw source is returned for `buildOfflinePage`. Callers that
+ * can render JavaScript (a WebView) should prefer the rendered DOM over this source.
  */
-export async function saveLink(sourceUrl: string, onProgress?: (p: PageProgress) => void): Promise<SavedLink> {
+export async function fetchLink(sourceUrl: string, onProgress?: (p: PageProgress) => void): Promise<LinkedFile | PageSource> {
   onProgress?.({ stage: "page" });
   const deadline = Date.now() + LIMITS.assetBudgetMs;
   let res: Response;
@@ -364,18 +366,23 @@ export async function saveLink(sourceUrl: string, onProgress?: (p: PageProgress)
   if (contentType && !/html|xml/.test(contentType)) {
     throw new PageError(`That link is not a web page (${contentType})`);
   }
-  let html = await res.text();
+  const html = await res.text();
   if (html.length > LIMITS.pageBytes) throw new PageError("The page is too large to save");
-  return buildOfflinePage(html, sourceUrl, finalUrl, deadline, onProgress);
+  return { kind: "html", html, finalUrl };
 }
 
-async function buildOfflinePage(
+/**
+ * Turns page HTML (rendered DOM or raw source) into a self-contained offline copy. Relative
+ * references are resolved against `finalUrl`; `sourceUrl` is what the user shared.
+ */
+export async function buildOfflinePage(
   html: string,
   sourceUrl: string,
   finalUrl: string,
-  deadline: number,
   onProgress?: (p: PageProgress) => void,
 ): Promise<OfflinePage> {
+  if (html.length > LIMITS.pageBytes) throw new PageError("The page is too large to save");
+  const deadline = Date.now() + LIMITS.assetBudgetMs;
 
   // Base URL for relative references: <base href> wins over the final URL.
   const baseTag = html.match(/<base\s[^>]*>/i)?.[0];

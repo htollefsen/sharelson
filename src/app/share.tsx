@@ -1,12 +1,13 @@
 import { useRouter } from "expo-router";
 import { useShareIntentContext, type ShareIntentFile } from "expo-share-intent";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { Button } from "@/components/button";
+import { PageRenderer, type PageRendererHandle } from "@/components/page-renderer";
 import { folderChecksums, localMd5, uploadToFolder, type UploadInput } from "@/lib/drive";
 import { getCurrentUser, NotSignedInError, signIn } from "@/lib/google-auth";
-import { saveLink, saveOfflinePage } from "@/lib/offline-page";
+import { buildOfflinePage, fetchLink, saveOfflinePage } from "@/lib/offline-page";
 import { getFolderId } from "@/lib/settings";
 import { colors, styles } from "@/lib/theme";
 
@@ -97,6 +98,7 @@ function statusText(status: Status): string {
       return "Waiting";
     case "downloading":
       if (status.detail === "file") return "Downloading…";
+      if (status.detail === "render") return "Loading page…";
       return status.detail ? `Saving page… ${status.detail}` : "Saving page…";
     case "checking":
       return "Checking for duplicates…";
@@ -142,6 +144,7 @@ export default function Share() {
   const signature = items.map((i) => i.key).join("|");
 
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
+  const renderer = useRef<PageRendererHandle>(null);
   const [blocker, setBlocker] = useState<Blocker>("none");
   const [busy, setBusy] = useState(false);
 
@@ -194,29 +197,43 @@ export default function Share() {
 
   /**
    * Downloads a shared link and uploads it: a link to a PDF, image or video is uploaded as that
-   * file, a web page is saved as a self-contained HTML file first.
+   * file. A web page is rendered in a hidden WebView so its JavaScript runs (falling back to the
+   * server's HTML if that fails), then saved as a self-contained HTML file.
    */
   const uploadPage = useCallback(
     async (item: Extract<ShareItem, { kind: "page" }>, folderId: string, existing: Map<string, string>) => {
       setStatus(item.key, { kind: "downloading" });
       log(`saving link ${item.url}`);
-      const saved = await saveLink(item.url, (p) => {
+      const onProgress = (p: { stage: string; done?: number; total?: number }) => {
         if (p.stage === "file") setStatus(item.key, { kind: "downloading", detail: "file" });
         if (p.stage === "assets" && p.total)
           setStatus(item.key, {
             kind: "downloading",
             detail: `${p.done}/${p.total} assets`,
           });
-      });
+      };
+      const fetched = await fetchLink(item.url, onProgress);
       let upload: UploadInput;
-      if (saved.kind === "page") {
+      if (fetched.kind === "html") {
+        let html = fetched.html;
+        let finalUrl = fetched.finalUrl;
+        setStatus(item.key, { kind: "downloading", detail: "render" });
+        try {
+          const rendered = await renderer.current!.render(fetched.finalUrl);
+          log(`rendered page "${rendered.title}" ${rendered.html.length} chars at ${rendered.finalUrl}`);
+          html = rendered.html;
+          finalUrl = rendered.finalUrl;
+        } catch (e) {
+          log("render failed, using server HTML:", e instanceof Error ? e.message : e);
+        }
+        const page = await buildOfflinePage(html, item.url, finalUrl, onProgress);
         log(
-          `page built: "${saved.title}" ${saved.html.length} chars, ${saved.inlinedAssets} assets inlined, ${saved.skippedAssets} skipped`,
+          `page built: "${page.title}" ${page.html.length} chars, ${page.inlinedAssets} assets inlined, ${page.skippedAssets} skipped`,
         );
-        upload = { uri: saveOfflinePage(saved), fileName: saved.fileName, mimeType: "text/html", size: null };
+        upload = { uri: saveOfflinePage(page), fileName: page.fileName, mimeType: "text/html", size: null };
       } else {
-        log(`downloaded file "${saved.fileName}" ${saved.size}B (${saved.mimeType}) from ${saved.finalUrl}`);
-        upload = { uri: saved.uri, fileName: saved.fileName, mimeType: saved.mimeType, size: saved.size };
+        log(`downloaded file "${fetched.fileName}" ${fetched.size}B (${fetched.mimeType}) from ${fetched.finalUrl}`);
+        upload = { uri: fetched.uri, fileName: fetched.fileName, mimeType: fetched.mimeType, size: fetched.size };
       }
       setStatus(item.key, { kind: "checking" });
       const md5 = await localMd5(upload.uri);
@@ -341,6 +358,7 @@ export default function Share() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <PageRenderer ref={renderer} />
       {items.length === 0 ? (
         <View style={styles.card}>
           <Text style={styles.title}>Nothing to upload</Text>
