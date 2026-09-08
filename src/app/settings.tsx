@@ -115,12 +115,12 @@ export default function Settings() {
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
+        <View style={styles.buttonRow}>
+          <View style={styles.buttonRowItem}>
             <Button title="Save" onPress={handleSaveFolder} busy={folderBusy} />
           </View>
           {savedFolderId && savedFolderId !== getDefaultFolderId() ? (
-            <View style={{ flex: 1 }}>
+            <View style={styles.buttonRowItem}>
               <Button title="Reset" variant="secondary" onPress={handleResetFolder} disabled={folderBusy} />
             </View>
           ) : null}

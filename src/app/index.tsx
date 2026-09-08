@@ -1,3 +1,4 @@
+import { openURL } from "expo-linking";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useShareIntentContext } from "expo-share-intent";
 import { useCallback, useEffect, useState } from "react";
@@ -9,6 +10,12 @@ import { type FolderListing, listFolder } from "@/lib/drive";
 import { getCurrentUser } from "@/lib/google-auth";
 import { getFolderId } from "@/lib/settings";
 import { colors, styles } from "@/lib/theme";
+
+const RECENT_COUNT = 7;
+
+function driveFolderUrl(folderId: string): string {
+  return `https://drive.google.com/drive/folders/${folderId}`;
+}
 
 export default function Home() {
   const router = useRouter();
@@ -32,7 +39,7 @@ export default function Home() {
     setListBusy(true);
     setListError(null);
     try {
-      setListing(await listFolder(id));
+      setListing(await listFolder(id, RECENT_COUNT));
     } catch (e) {
       setListError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -69,17 +76,24 @@ export default function Home() {
     >
       {ready ? (
         <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={[styles.title, { flex: 1 }]}>In the folder</Text>
-            <Text style={styles.muted}>{listing ? `${listing.files.length}` : ""}</Text>
-          </View>
+          <Text style={styles.title}>Latest in the folder</Text>
           {listError ? <Text style={[styles.muted, { color: colors.error }]}>{listError}</Text> : null}
           {listing && listing.files.length === 0 ? (
             <Text style={styles.muted}>Nothing here yet. Share a photo or video to Sharelsen to add one.</Text>
           ) : null}
           {listing ? <FileList files={listing.files} accessToken={listing.accessToken} /> : null}
           {!listing && listBusy ? <Text style={styles.muted}>Loading…</Text> : null}
-          <Button title="Refresh" variant="secondary" onPress={() => loadListing(folderId, signedIn)} busy={listBusy} />
+          {listing && listing.files.length >= RECENT_COUNT ? (
+            <Text style={styles.muted}>Showing the {RECENT_COUNT} most recent. Open the folder for everything.</Text>
+          ) : null}
+          <View style={styles.buttonRow}>
+            <View style={styles.buttonRowItem}>
+              <Button title="Open in Drive" onPress={() => folderId && openURL(driveFolderUrl(folderId))} />
+            </View>
+            <View style={styles.buttonRowItem}>
+              <Button title="Refresh" variant="secondary" onPress={() => loadListing(folderId, signedIn)} busy={listBusy} />
+            </View>
+          </View>
         </View>
       ) : (
         <View style={styles.card}>

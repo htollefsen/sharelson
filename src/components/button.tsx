@@ -18,6 +18,7 @@ export function Button({ title, onPress, variant = "primary", disabled, busy }: 
       disabled={disabled || busy}
       style={[
         styles.button,
+        { flex: 1 },
         secondary && styles.buttonSecondary,
         (disabled || busy) && styles.buttonDisabled,
       ]}
@@ -25,7 +26,9 @@ export function Button({ title, onPress, variant = "primary", disabled, busy }: 
       {busy ? (
         <ActivityIndicator color={secondary ? colors.text : "#FFFFFF"} />
       ) : (
-        <Text style={[styles.buttonText, secondary && styles.buttonTextSecondary]}>{title}</Text>
+        <Text style={[styles.buttonText, secondary && styles.buttonTextSecondary]} numberOfLines={1}>
+          {title}
+        </Text>
       )}
     </Pressable>
   );

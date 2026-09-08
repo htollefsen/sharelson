@@ -59,6 +59,8 @@ export const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
   },
   buttonSecondary: {
     backgroundColor: colors.card,
@@ -80,5 +82,14 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  /** Row of equally sized buttons; children stretch to the tallest one. */
+  buttonRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 12,
+  },
+  buttonRowItem: {
+    flex: 1,
   },
 });
