@@ -7,6 +7,8 @@ import { getAccessToken, invalidateAccessToken } from "./google-auth";
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
 
+export const FOLDER_MIME = "application/vnd.google-apps.folder";
+
 export type DriveFile = {
   id: string;
   name: string;
@@ -86,10 +88,59 @@ export async function getFolder(folderId: string): Promise<DriveFile> {
   );
   if (!response.ok) throw await describeError(response, "Could not read folder");
   const folder = (await response.json()) as DriveFile;
-  if (folder.mimeType !== "application/vnd.google-apps.folder") {
+  if (folder.mimeType !== FOLDER_MIME) {
     throw new DriveError("That ID is a file, not a folder", 400);
   }
   return folder;
+}
+
+/** Parent ID meaning the root of the signed-in user's My Drive. */
+export const MY_DRIVE_ROOT = "root";
+
+/** Subfolders of `parentId` (a folder ID, a shared drive ID, or MY_DRIVE_ROOT), sorted by name. */
+export async function listSubfolders(parentId: string): Promise<DriveFile[]> {
+  return listFolders(`'${parentId}' in parents and mimeType='${FOLDER_MIME}' and trashed=false`);
+}
+
+/** Folders other people have shared directly with the signed-in user, sorted by name. */
+export async function listSharedWithMeFolders(): Promise<DriveFile[]> {
+  return listFolders(`sharedWithMe=true and mimeType='${FOLDER_MIME}' and trashed=false`);
+}
+
+async function listFolders(q: string): Promise<DriveFile[]> {
+  const result: DriveFile[] = [];
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({
+      q,
+      orderBy: "name",
+      pageSize: "200",
+      fields: "nextPageToken,files(id,name,mimeType)",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+    const response = await withToken((token) =>
+      fetch(`${DRIVE_API}/files?${params}`, { headers: { Authorization: `Bearer ${token}` } }),
+    );
+    if (!response.ok) throw await describeError(response, "Could not list folders");
+    const body = (await response.json()) as { files?: DriveFile[]; nextPageToken?: string };
+    result.push(...(body.files ?? []));
+    pageToken = body.nextPageToken;
+  } while (pageToken);
+  return result;
+}
+
+/** Shared drives the user is a member of. Empty for plain Gmail accounts. */
+export async function listSharedDrives(): Promise<DriveFile[]> {
+  const response = await withToken((token) =>
+    fetch(`${DRIVE_API}/drives?pageSize=100&fields=drives(id,name)`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  );
+  if (!response.ok) return [];
+  const body = (await response.json()) as { drives?: { id: string; name: string }[] };
+  return (body.drives ?? []).map((d) => ({ id: d.id, name: d.name, mimeType: FOLDER_MIME }));
 }
 
 const LIST_FIELDS = "files(id,name,mimeType,size,createdTime,thumbnailLink,webViewLink)";

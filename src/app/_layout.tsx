@@ -31,6 +31,7 @@ export default function RootLayout() {
             ),
           }}
         />
+        <Stack.Screen name="setup" options={{ title: "Set up Sharelsen", headerBackVisible: false }} />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="share" options={{ title: "Upload to Drive", headerBackVisible: false }} />
       </Stack>

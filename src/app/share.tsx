@@ -406,8 +406,9 @@ export default function Share() {
 
           {blocker === "no-folder" ? (
             <View style={styles.card}>
-              <Text style={styles.body}>No Drive folder is configured yet.</Text>
-              <Button title="Open settings" onPress={finish} />
+              <Text style={styles.body}>Finish setting up Sharelsen first. The share is kept while you do.</Text>
+              <Button title="Set up Sharelsen" onPress={() => router.replace("/setup")} />
+              <Button title="Cancel" variant="secondary" onPress={finish} />
             </View>
           ) : null}
 

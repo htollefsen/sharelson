@@ -5,8 +5,11 @@ folder. Android only, distributed as a sideloaded APK to family.
 
 ## How it works
 
-1. Each family member installs the APK and signs in with their own Google account.
-2. They paste the link to the shared Drive folder once, on the settings screen.
+1. Each family member installs the APK. On first launch a setup wizard asks them to sign in
+   with their own Google account and then pick the shared Drive folder by browsing Drive (or
+   pasting the folder link). The app cannot be used until both steps are done.
+2. Settings shows the account and folder, lets them change the folder, and has a reset button
+   that signs out, forgets the folder and runs the wizard again.
 3. From then on, sharing a photo or video to Sharelsen uploads it straight into that folder.
    Sharing a link from a browser saves the page as a self-contained offline HTML file there.
 

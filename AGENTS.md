@@ -18,14 +18,18 @@ folder's `md5Checksum` values so identical files are skipped.
 
 - `src/app/_layout.tsx` — root Stack wrapped in ShareIntentProvider (resetOnBackground off,
   because Google sign-in screens background the app mid-share).
-- `src/app/index.tsx` — home: lists the Drive folder contents once set up, otherwise shows a
-  "finish setup" prompt. Header gear button opens `/settings`. Redirects to `/share` when a
-  share intent is present.
-- `src/app/settings.tsx` — Google sign-in/out and Drive folder selection.
+- `src/app/index.tsx` — home: lists the Drive folder contents. Redirects to `/setup` until the
+  user is signed in and a folder is saved, then to `/share` when a share intent is present.
+  Header gear button opens `/settings`.
+- `src/app/setup.tsx` — first-run wizard: Google sign-in, then a Drive folder browser (My Drive,
+  shared with me, shared drives, or a pasted link). `?step=folder` changes only the folder.
+- `src/app/settings.tsx` — shows the account and folder, "Change folder", and a reset button that
+  signs out, revokes access, clears stored settings and reopens the wizard.
 - `src/app/share.tsx` — upload screen: items are media files (images, videos, PDFs) or a web page; per-item status,
   MD5 dedupe, sign-in prompt, retry, done.
 - `src/lib/google-auth.ts` — configure/sign-in/token helpers.
-- `src/lib/drive.ts` — Drive API calls (folder lookup, listing, checksums, resumable upload, 401 retry).
+- `src/lib/drive.ts` — Drive API calls (folder lookup, folder browsing, listing, checksums,
+  resumable upload, 401 retry).
 - `src/lib/offline-page.ts` — handles a shared URL: a link to a PDF, image or video is downloaded
   to the cache and uploaded as is; a web page becomes a self-contained HTML file (stylesheets,
   images, fonts inlined as data URIs; scripts stripped; links made absolute) for upload.
@@ -35,7 +39,8 @@ folder's `md5Checksum` values so identical files are skipped.
   the raw server HTML if rendering fails or times out.
 - `src/lib/media-date.ts` — original capture time of a shared photo/video (JPEG EXIF, MP4 `mvhd`,
   or a timestamp in the file name), sent to Drive as `createdTime`/`modifiedTime` on upload.
-- `src/lib/settings.ts` — folder ID persistence (expo-secure-store) and URL parsing.
+- `src/lib/settings.ts` — folder ID/name persistence (expo-secure-store), reset, and URL parsing.
+  There is no default folder; every install goes through the wizard.
 - `src/lib/theme.ts`, `src/components/` — minimal shared styling, button, header icon button,
   Drive file list.
 - `app.json` — Expo config. Package id `no.tollefsen.sharelsen`.

@@ -51,6 +51,19 @@ export async function signOut(): Promise<void> {
 }
 
 /**
+ * Signs out and revokes the app's access to the account, so the next sign-in shows the
+ * account picker and consent screen again as on a fresh install.
+ */
+export async function resetSignIn(): Promise<void> {
+  try {
+    await GoogleSignin.revokeAccess();
+  } catch {
+    // Offline or already revoked; signing out is what matters for the app.
+  }
+  await GoogleSignin.signOut();
+}
+
+/**
  * Returns a valid access token, signing in silently if the native SDK has a
  * saved account. Throws NotSignedInError if interactive sign-in is required.
  */

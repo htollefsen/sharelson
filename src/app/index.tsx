@@ -8,7 +8,7 @@ import { Button } from "@/components/button";
 import { FileList } from "@/components/file-list";
 import { type FolderListing, listFolder } from "@/lib/drive";
 import { getCurrentUser } from "@/lib/google-auth";
-import { getFolderId } from "@/lib/settings";
+import { getFolder, type SavedFolder } from "@/lib/settings";
 import { colors, styles } from "@/lib/theme";
 
 const RECENT_COUNT = 7;
@@ -22,14 +22,21 @@ export default function Home() {
   const { hasShareIntent } = useShareIntentContext();
 
   const [signedIn, setSignedIn] = useState(Boolean(getCurrentUser()));
-  const [folderId, setFolderId] = useState<string | null>(null);
+  const [folder, setFolder] = useState<SavedFolder | null>(null);
+  const [checked, setChecked] = useState(false);
+  const folderId = folder?.id ?? null;
   const [listing, setListing] = useState<FolderListing | null>(null);
   const [listBusy, setListBusy] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
 
+  // Setup must finish before anything else, including handling a share.
+  const ready = signedIn && folder !== null;
+
   useEffect(() => {
-    if (hasShareIntent) router.replace("/share");
-  }, [hasShareIntent, router]);
+    if (!checked) return;
+    if (!ready) router.replace("/setup");
+    else if (hasShareIntent) router.replace("/share");
+  }, [checked, ready, hasShareIntent, router]);
 
   const loadListing = useCallback(async (id: string | null, isSignedIn: boolean) => {
     if (!id || !isSignedIn) {
@@ -48,19 +55,18 @@ export default function Home() {
   }, []);
 
   // Re-read account and folder whenever this screen is shown, e.g. after returning from
-  // settings or from an upload.
+  // setup, settings or an upload.
   useFocusEffect(
     useCallback(() => {
       const isSignedIn = Boolean(getCurrentUser());
       setSignedIn(isSignedIn);
-      getFolderId().then((id) => {
-        setFolderId(id);
-        loadListing(id, isSignedIn);
+      getFolder().then((saved) => {
+        setFolder(saved);
+        setChecked(true);
+        loadListing(saved?.id ?? null, isSignedIn);
       });
     }, [loadListing]),
   );
-
-  const ready = signedIn && Boolean(folderId);
 
   return (
     <ScrollView
@@ -76,7 +82,7 @@ export default function Home() {
     >
       {ready ? (
         <View style={styles.card}>
-          <Text style={styles.title}>Latest in the folder</Text>
+          <Text style={styles.title}>Latest in {folder?.name}</Text>
           {listError ? <Text style={[styles.muted, { color: colors.error }]}>{listError}</Text> : null}
           {listing && listing.files.length === 0 ? (
             <Text style={styles.muted}>Nothing here yet. Share a photo or video to Sharelsen to add one.</Text>
@@ -95,19 +101,7 @@ export default function Home() {
             </View>
           </View>
         </View>
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.title}>Finish setup</Text>
-          <Text style={styles.body}>
-            {!signedIn && !folderId
-              ? "Sign in with Google and choose a Drive folder to start receiving photos and videos."
-              : !signedIn
-                ? "Sign in with Google to start receiving photos and videos."
-                : "Choose a Drive folder to start receiving photos and videos."}
-          </Text>
-          <Button title="Open settings" onPress={() => router.push("/settings")} />
-        </View>
-      )}
+      ) : null}
     </ScrollView>
   );
 }

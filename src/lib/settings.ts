@@ -1,7 +1,9 @@
-import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 
-const FOLDER_KEY = "driveFolderId";
+const FOLDER_ID_KEY = "driveFolderId";
+const FOLDER_NAME_KEY = "driveFolderName";
+
+export type SavedFolder = { id: string; name: string };
 
 /**
  * Accepts either a bare Drive folder ID or a Drive folder URL such as
@@ -18,21 +20,25 @@ export function parseFolderId(input: string): string | null {
   return null;
 }
 
-/** Folder baked into the build (app.json → extra.defaultDriveFolderId), used until the user saves another. */
-export function getDefaultFolderId(): string | null {
-  const id = Constants.expoConfig?.extra?.defaultDriveFolderId as string | undefined;
-  return id ? parseFolderId(id) : null;
+/** The folder chosen during setup, or null when setup hasn't been completed. */
+export async function getFolder(): Promise<SavedFolder | null> {
+  const id = await SecureStore.getItemAsync(FOLDER_ID_KEY);
+  if (!id) return null;
+  const name = (await SecureStore.getItemAsync(FOLDER_NAME_KEY)) ?? "Drive folder";
+  return { id, name };
 }
 
-/** The user's saved folder, falling back to the build default. */
 export async function getFolderId(): Promise<string | null> {
-  return (await SecureStore.getItemAsync(FOLDER_KEY)) ?? getDefaultFolderId();
+  return SecureStore.getItemAsync(FOLDER_ID_KEY);
 }
 
-export async function setFolderId(id: string): Promise<void> {
-  await SecureStore.setItemAsync(FOLDER_KEY, id);
+export async function setFolder(folder: SavedFolder): Promise<void> {
+  await SecureStore.setItemAsync(FOLDER_ID_KEY, folder.id);
+  await SecureStore.setItemAsync(FOLDER_NAME_KEY, folder.name);
 }
 
-export async function clearFolderId(): Promise<void> {
-  await SecureStore.deleteItemAsync(FOLDER_KEY);
+/** Forgets everything the app has stored, so the setup wizard runs again. */
+export async function clearSettings(): Promise<void> {
+  await SecureStore.deleteItemAsync(FOLDER_ID_KEY);
+  await SecureStore.deleteItemAsync(FOLDER_NAME_KEY);
 }
