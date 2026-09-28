@@ -46,7 +46,8 @@
           ],
           "disableIOS": true
         }
-      ]
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,
